@@ -3,29 +3,60 @@ package bip39
 import "testing"
 
 //TODO import and test all languages
-func TestDictionary(t *testing.T) {
+func TestDictionaryIndex(t *testing.T) {
 	type tuple struct {
-		dict []string
-		line int
-		word string
-	}
-
-	en, err := dictionary()
-	if err != nil {
-		t.Error(err)
+		index int
+		word  string
 	}
 
 	table := []tuple{
-		{en, 1, "abandon"},
-		{en, 655, "fade"},
-		{en, 2048, "zoo"},
+		//line in file - 1 being 0 index based
+		{1 - 1, "abandon"},
+		{655 - 1, "fade"},
+		{2048 - 1, "zoo"},
 	}
 
-	for _, tuple := range table {
-		index := tuple.line - 1
-		if tuple.dict[index] != tuple.word {
-			t.Errorf("wrong word for line %v, expected %v got %v",
-				tuple.line, tuple.word, tuple.dict[index])
+	for _, d := range table {
+		index, err := dictionaryWordToIndex(d.word)
+		if err != nil {
+			t.Error(err)
+		}
+
+		if index != d.index {
+			t.Errorf("wrong index for word %v, expected %v got %v",
+				d.word, d.index, index)
+		}
+
+		word, err := dictionaryIndexToWord(d.index)
+		if err != nil {
+			t.Error(err)
+		}
+
+		if word != d.word {
+			t.Errorf("wrong word for index %v, expected %v got %v",
+				d.index, d.word, word)
 		}
 	}
+}
+
+func TestWrongWords(t *testing.T) {
+	negativeIndex := []int{-1, 2049}
+	negativeWord := []string{"xxx", "-"}
+
+	for _, ni := range negativeIndex {
+		_, err := dictionaryIndexToWord(ni)
+		if err == nil {
+			t.Errorf("index %v should return an error",
+				ni)
+		}
+	}
+
+	for _, nw := range negativeWord {
+		_, err := dictionaryWordToIndex(nw)
+		if err == nil {
+			t.Errorf("word %v should return an error",
+				nw)
+		}
+	}
+
 }
