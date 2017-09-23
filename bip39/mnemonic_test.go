@@ -18,7 +18,7 @@ func TestGenerateEntropy(t *testing.T) {
 	}
 
 	for _, n := range negative {
-		_, err = generateEntropy(n)
+		_, err = generateRandomEntropy(n)
 		if err == nil {
 			t.Errorf("generateEntropy shouldn't work with size %v", n)
 		}
@@ -41,6 +41,10 @@ func TestGenerateEntropy(t *testing.T) {
 			t.Errorf("NewMnemonicFromEntropy shouldn't work with %v", n)
 		}
 	}
+}
+
+func TestFromSentence(t *testing.T) {
+
 }
 
 func TestRandomGeneration(t *testing.T) {
@@ -113,32 +117,67 @@ func TestVectors(t *testing.T) {
 		// what is v[3] ?
 
 		ent, err := hex.DecodeString(entropyHex)
-		if err != nil {
-			t.Error(err)
-		}
+		assertErr(err, t)
 
 		r, err := NewMnemonicFromEntropy(ent, "TREZOR")
-		if err != nil {
-			t.Error(err)
+		assertErr(err, t)
+
+		if r != nil {
+
+			s, err := r.GetSentence()
+			if err != nil {
+				t.Error(err)
+			}
+
+			if s != mnemonic {
+				t.Errorf("GetSentence exp %v got %v for %v",
+					mnemonic, s, entropyHex)
+			}
+			se, err := r.GetSeed()
+			if err != nil {
+				t.Error(err)
+			}
+
+			if se != seed {
+				t.Errorf("GetSeed exp %v got %v for %v",
+					seed, se, entropyHex)
+			}
+
+			entHexGot, err := r.GetEntropyStrHex()
+			if err != nil {
+				t.Error(err)
+			}
+			if entHexGot != entropyHex {
+				t.Errorf("GetEntropyStrHex exp %v got %v",
+					entropyHex, entHexGot)
+			}
 		}
 
-		s, err := r.GetSentence()
+		code, err := NewMnemonicFromSentence(mnemonic, "TREZOR")
 		if err != nil {
-			t.Error(err)
+			t.Errorf("NewMnemonicFromSentence failed for '%v': %v",
+				mnemonic, err)
 		}
 
-		if s != mnemonic {
-			t.Errorf("exp %v got %v for %v",
-				mnemonic, s, entropyHex)
-		}
-		se, err := r.GetSeed()
-		if err != nil {
-			t.Error(err)
-		}
+		if code != nil {
+			ns, err := code.GetSeed()
+			if err != nil {
+				t.Error(err)
+			}
 
-		if se != seed {
-			t.Errorf("exp %v got %v for %v",
-				seed, se, entropyHex)
+			if ns != seed {
+				t.Errorf("NewMnemonicFromSentence seed failed check for %v, got %v exp %v",
+					mnemonic, seed, ns)
+			}
+
+			entHexGot, err := code.GetEntropyStrHex()
+			if err != nil {
+				t.Error(err)
+			}
+			if entHexGot != entropyHex {
+				t.Errorf("GetEntropyStrHex exp %v got %v",
+					entropyHex, entHexGot)
+			}
 		}
 
 		// fmt.Printf("seed pass %v", seed)
@@ -146,7 +185,7 @@ func TestVectors(t *testing.T) {
 }
 
 func assertEntropy(size int, t *testing.T) {
-	a, err := generateEntropy(size)
+	a, err := generateRandomEntropy(size)
 	assertErr(err, t)
 	if emptyBytes(a) {
 		t.Errorf("generateEntropy empty for %v", size)

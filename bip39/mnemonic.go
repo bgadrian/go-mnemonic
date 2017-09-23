@@ -31,12 +31,10 @@ type Mnemonic struct {
 	sentence   string
 }
 
-/*NewMnemonicRandom generate a group of easy to remember words
- -- for the generation of deterministic wallets.
-use size 128 for a 12 words code.*/
+/*NewMnemonicRandom creates a new random (crypto safe) Mnemonic.Use size 128 for a 12 words code.*/
 func NewMnemonicRandom(size int, passphrase string) (code *Mnemonic, e error) {
 	//we generate ENT count of random bits
-	ent, err := generateEntropy(size)
+	ent, err := generateRandomEntropy(size)
 	if err != nil {
 		e = err
 		return
@@ -49,7 +47,7 @@ func NewMnemonicRandom(size int, passphrase string) (code *Mnemonic, e error) {
 	return
 }
 
-//NewMnemonicFromEntropy ...
+//NewMnemonicFromEntropy Generates a Mnemonic based on a known entropy (stored as hex bytes)
 func NewMnemonicFromEntropy(ent []byte, passphrase string) (code *Mnemonic, err error) {
 	bitsCount := len(ent) * bitsInByte
 	err = validBitsCount(bitsCount)
@@ -63,50 +61,48 @@ func NewMnemonicFromEntropy(ent []byte, passphrase string) (code *Mnemonic, err 
 	return
 }
 
-//newMnemonicFromSentence ...
-func newMnemonicFromSentence(sentence string, passphrase string) (code *Mnemonic, e error) {
-	if SentenceValid(sentence) == false {
-		return nil, errors.New("mnemonic is invalid")
-	}
-
+//NewMnemonicFromSentence Generates a menmonic based on a known code (list of words).
+func NewMnemonicFromSentence(sentence string, passphrase string) (code *Mnemonic, e error) {
 	words := strings.Split(sentence, " ")
-	bitsCount := len(words) * wordBits
+	bitsCountWithCheksum := len(words) * wordBits
+	checksumBitsCount := bitsCountWithCheksum % multiple
+	bitsCount := bitsCountWithCheksum - checksumBitsCount
+
 	e = validBitsCount(bitsCount)
 	if e != nil {
 		return
 	}
 
-	checksumSize := bitsCount % multiple
 	groups := make([]int, len(words))
-
 	for i, word := range words {
-		wordIndex, err := dictionaryWordToIndex(word)
+		wordIndex, err := dictionaryWordToIndex(strings.Trim(word, ""))
 		if err != nil {
 			return nil, err
 		}
 		groups[i] = wordIndex
 	}
 
+	//ent as string of bits
 	binWithChecksum := ""
 	for _, b := range groups {
-		binWithChecksum = binWithChecksum + fmt.Sprintf("%08b", b)
+		binWithChecksum = binWithChecksum + fmt.Sprintf("%011b", b)
+	}
+	bin := binWithChecksum[:bitsCount]
+
+	if len(bin) != bitsCount {
+		return nil, fmt.Errorf("internal error, bits count for '%v' is wrong, got %v bits, exp %v",
+			sentence, len(binWithChecksum), bitsCount)
 	}
 
-	if len(binWithChecksum) != bitsCount {
-		return nil, fmt.Errorf("internal error, wrong checksum from %v",
-			sentence)
+	if len(binWithChecksum) != bitsCountWithCheksum {
+		return nil, fmt.Errorf("internal error, wrong checksum from %v, got %v bits",
+			sentence, len(binWithChecksum))
 	}
-
-	//bits of the checksum, as string
-	// checksum := binWithChecksum[len(binWithChecksum)-checksumSize:]
-	//TODO check this for validity
-
 	//entropy as a string of bits
-	bin := binWithChecksum[:len(binWithChecksum)-checksumSize]
-	ent := make([]byte, bitsCount/bitsInByte)
+	ent := make([]byte, checksumBitsCount/bitsInByte)
 
 	var byteAsBinaryStr string
-	for i := 0; i < len(ent); i += bitsInByte {
+	for i := 0; i < len(ent)-1; i += bitsInByte {
 		startIndex := i * bitsInByte
 		endIndex := startIndex + bitsInByte + 1
 		if endIndex >= len(bin)-1 {
@@ -120,6 +116,9 @@ func newMnemonicFromSentence(sentence string, passphrase string) (code *Mnemonic
 		}
 		ent[i] = byte(asInt64)
 	}
+	//bits of the checksum, as string
+	// checksum := binWithChecksum[len(binWithChecksum)-checksumSize:]
+	//TODO add checksum to entropy
 
 	code = &Mnemonic{}
 	code.ent = ent
@@ -128,7 +127,7 @@ func newMnemonicFromSentence(sentence string, passphrase string) (code *Mnemonic
 	return
 }
 
-//GetSentence ...
+//GetSentence Return the words from this Mnemonic.
 func (m *Mnemonic) GetSentence() (string, error) {
 	if len(m.sentence) != 0 {
 		return m.sentence, nil
@@ -139,7 +138,7 @@ func (m *Mnemonic) GetSentence() (string, error) {
 		bin = bin + fmt.Sprintf("%08b", b)
 	}
 
-	checksum, err := checksumEntropy(m.ent)
+	checksum, err := generateChecksumEntropy(m.ent)
 	if err != nil {
 		return "", err
 	}
@@ -182,7 +181,7 @@ func (m *Mnemonic) GetSentence() (string, error) {
 	return m.sentence, nil
 }
 
-//GetSeed ...
+//GetSeed Returns the seed for this Mnemonic (as hex in string)
 func (m *Mnemonic) GetSeed() (seed string, e error) {
 
 	sentence, err := m.GetSentence()
@@ -195,12 +194,21 @@ func (m *Mnemonic) GetSeed() (seed string, e error) {
 	return
 }
 
-//NewSeed ...
+//NewSeed Based on a code (word list) returns the seed (hex bytes)
 func NewSeed(mnecmonic, passphrase string) []byte {
 	return pbkdf2.Key([]byte(mnecmonic), []byte("mnemonic"+passphrase), 2048, 64, sha512.New)
 }
 
-func generateEntropy(bitsCount int) (ent []byte, err error) {
+//GetEntropyStrHex get the entryope as hex in a string, for easy storage
+func (m *Mnemonic) GetEntropyStrHex() (string, error) {
+	if len(m.ent) == 0 {
+		return "", errors.New("empty entropy")
+	}
+
+	return hex.EncodeToString(m.ent), nil
+}
+
+func generateRandomEntropy(bitsCount int) (ent []byte, err error) {
 	err = validBitsCount(bitsCount)
 	if err != nil {
 		return
@@ -212,18 +220,19 @@ func generateEntropy(bitsCount int) (ent []byte, err error) {
 	return
 }
 
+//Based on BIP39 specifications
 func validBitsCount(bitsCount int) error {
 	if bitsCount < minEnt || bitsCount > maxEnt || bitsCount%multiple != 0 {
 		return fmt.Errorf(
-			"entropy must between %v-%v and be divisible by %v",
-			minEnt, maxEnt, multiple)
+			"entropy must between %v-%v and be divisible by %v, but got %v bits",
+			minEnt, maxEnt, multiple, bitsCount)
 	}
 	return nil
 }
 
-/*checksumEntropy A checksum is generated by taking the first
+/*generateChecksumEntropy A checksum is generated by taking the first
 ENT / 32 bits of its SHA256 hash.*/
-func checksumEntropy(ent []byte) (string, error) {
+func generateChecksumEntropy(ent []byte) (string, error) {
 	hash := sha256.New()
 	_, err := hash.Write(ent)
 
@@ -245,10 +254,4 @@ func checksumEntropy(ent []byte) (string, error) {
 		return "", errors.New("internal error, sha256 doesnt have 256 bits")
 	}
 	return hashbits[:cs], nil
-}
-
-//SentenceValid ...
-func SentenceValid(s string) bool {
-	//TODO
-	return true
 }
