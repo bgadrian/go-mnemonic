@@ -92,7 +92,7 @@ func TestRandomGeneration(t *testing.T) {
 }
 
 func TestVectors(t *testing.T) {
-	vectors, err := ioutil.ReadFile("vectors.json")
+	vectors, err := ioutil.ReadFile("files/vectors.json")
 	if err != nil {
 		t.Error(err)
 	}
@@ -110,7 +110,41 @@ func TestVectors(t *testing.T) {
 		t.Error(errors.New("no vectors to test"))
 	}
 
-	for _, v := range data.Arr {
+	assertM := func(r *Mnemonic, msg string, entropyHex, mnemonic, seed string) {
+		if r == nil {
+			return
+		}
+
+		s, err := r.GetSentence()
+		if err != nil {
+			t.Error(err)
+		}
+
+		if s != mnemonic {
+			t.Errorf("%v:GetSentence exp %v got %v for %v",
+				msg, mnemonic, s, entropyHex)
+		}
+		se, err := r.GetSeed()
+		if err != nil {
+			t.Error(err)
+		}
+
+		if se != seed {
+			t.Errorf("%v: GetSeed exp %v got %v for %v",
+				msg, seed, se, entropyHex)
+		}
+
+		entHexGot, err := r.GetEntropyStrHex()
+		if err != nil {
+			t.Error(err)
+		}
+		if entHexGot != entropyHex {
+			t.Errorf("%v: GetEntropyStrHex exp %v got %v",
+				msg, entropyHex, entHexGot)
+		}
+	}
+
+	for _, v := range data.Arr[1:2] {
 		entropyHex := v[0]
 		mnemonic := v[1]
 		seed := v[2]
@@ -119,68 +153,16 @@ func TestVectors(t *testing.T) {
 		ent, err := hex.DecodeString(entropyHex)
 		assertErr(err, t)
 
-		r, err := NewMnemonicFromEntropy(ent, "TREZOR")
+		code1, err := NewMnemonicFromEntropy(ent, "TREZOR")
 		assertErr(err, t)
+		assertM(code1, "NewMnemonicFromEntropy", entropyHex, mnemonic, seed)
 
-		if r != nil {
-
-			s, err := r.GetSentence()
-			if err != nil {
-				t.Error(err)
-			}
-
-			if s != mnemonic {
-				t.Errorf("GetSentence exp %v got %v for %v",
-					mnemonic, s, entropyHex)
-			}
-			se, err := r.GetSeed()
-			if err != nil {
-				t.Error(err)
-			}
-
-			if se != seed {
-				t.Errorf("GetSeed exp %v got %v for %v",
-					seed, se, entropyHex)
-			}
-
-			entHexGot, err := r.GetEntropyStrHex()
-			if err != nil {
-				t.Error(err)
-			}
-			if entHexGot != entropyHex {
-				t.Errorf("GetEntropyStrHex exp %v got %v",
-					entropyHex, entHexGot)
-			}
-		}
-
-		code, err := NewMnemonicFromSentence(mnemonic, "TREZOR")
+		code2, err := NewMnemonicFromSentence(mnemonic, "TREZOR")
 		if err != nil {
 			t.Errorf("NewMnemonicFromSentence failed for '%v': %v",
 				mnemonic, err)
 		}
-
-		if code != nil {
-			ns, err := code.GetSeed()
-			if err != nil {
-				t.Error(err)
-			}
-
-			if ns != seed {
-				t.Errorf("NewMnemonicFromSentence seed failed check for %v, got %v exp %v",
-					mnemonic, seed, ns)
-			}
-
-			entHexGot, err := code.GetEntropyStrHex()
-			if err != nil {
-				t.Error(err)
-			}
-			if entHexGot != entropyHex {
-				t.Errorf("GetEntropyStrHex exp %v got %v",
-					entropyHex, entHexGot)
-			}
-		}
-
-		// fmt.Printf("seed pass %v", seed)
+		assertM(code2, "NewMnemonicFromSentence", entropyHex, mnemonic, seed)
 	}
 }
 
@@ -213,3 +195,5 @@ func emptyBytes(slice []byte) bool {
 	}
 	return true
 }
+
+

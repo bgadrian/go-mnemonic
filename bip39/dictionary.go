@@ -67,7 +67,7 @@ func dictionary() ([]string, error) {
 	dict[lang] = make([]string, size)
 	reverseDict[lang] = make(map[string]int, size)
 
-	file, err := os.Open(lang + ".txt")
+	file, err := os.Open("files/" + lang + ".txt")
 	if err != nil {
 		return nil, err
 	}

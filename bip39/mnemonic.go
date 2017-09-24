@@ -26,6 +26,7 @@ const wordBits = 11
 
 //Mnemonic ...
 type Mnemonic struct {
+	//entropy without the checksum
 	ent        []byte
 	passphrase string
 	sentence   string
@@ -73,38 +74,35 @@ func NewMnemonicFromSentence(sentence string, passphrase string) (code *Mnemonic
 		return
 	}
 
-	groups := make([]int, len(words))
-	for i, word := range words {
+	//ent as string of bits
+	binWithChecksum := ""
+	for _, word := range words {
 		wordIndex, err := dictionaryWordToIndex(strings.Trim(word, ""))
 		if err != nil {
 			return nil, err
 		}
-		groups[i] = wordIndex
+		binWithChecksum = binWithChecksum + fmt.Sprintf("%011b", wordIndex)
 	}
 
-	//ent as string of bits
-	binWithChecksum := ""
-	for _, b := range groups {
-		binWithChecksum = binWithChecksum + fmt.Sprintf("%011b", b)
+	if len(binWithChecksum) != bitsCountWithCheksum {
+		return nil, fmt.Errorf("internal error, wrong checksum got %v bits, expected %v, sentence:'%v'",
+			len(binWithChecksum), bitsCountWithCheksum, sentence)
 	}
+
+	//entropy without the checksum
 	bin := binWithChecksum[:bitsCount]
 
 	if len(bin) != bitsCount {
 		return nil, fmt.Errorf("internal error, bits count for '%v' is wrong, got %v bits, exp %v",
 			sentence, len(binWithChecksum), bitsCount)
 	}
-
-	if len(binWithChecksum) != bitsCountWithCheksum {
-		return nil, fmt.Errorf("internal error, wrong checksum from %v, got %v bits",
-			sentence, len(binWithChecksum))
-	}
 	//entropy as a string of bits
-	ent := make([]byte, checksumBitsCount/bitsInByte)
+	ent := make([]byte, bitsCount/bitsInByte)
 
 	var byteAsBinaryStr string
-	for i := 0; i < len(ent)-1; i += bitsInByte {
+	for i := 0; i < len(ent); i++ {
 		startIndex := i * bitsInByte
-		endIndex := startIndex + bitsInByte + 1
+		endIndex := startIndex + bitsInByte
 		if endIndex >= len(bin)-1 {
 			byteAsBinaryStr = bin[startIndex:]
 		} else {
@@ -156,7 +154,7 @@ func (m *Mnemonic) GetSentence() (string, error) {
 	for i := 0; i < wordCount; i++ {
 		startIndex := i * wordBits
 		endIndex := startIndex + wordBits
-		if endIndex >= len(bin) {
+		if endIndex >= len(bin)-1 {
 			str = bin[startIndex:]
 		} else {
 			str = bin[startIndex:endIndex]

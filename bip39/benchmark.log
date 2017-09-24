@@ -1,0 +1,11 @@
+goos: windows
+goarch: amd64
+pkg: github.com/bgadrian/go-mnemonic-wallets/bip39
+BenchmarkNewMnemonicRandom128-4      	 5000000	       300 ns/op	      80 B/op	       2 allocs/op
+BenchmarkNewMnemonicFromEntropy-4    	20000000	        54.6 ns/op	      64 B/op	       1 allocs/op
+BenchmarkNewMnemonicFromSentence-4   	  300000	      4453 ns/op	    1504 B/op	      38 allocs/op
+BenchmarkGetSentence-4               	1000000000	         2.67 ns/op	       0 B/op	       0 allocs/op
+BenchmarkGetSeed-4                   	     500	   2615015 ns/op	    1294 B/op	      12 allocs/op
+BenchmarkGetEntropyStrHex-4          	20000000	       116 ns/op	      64 B/op	       2 allocs/op
+PASS
+ok  	github.com/bgadrian/go-mnemonic-wallets/bip39	11.351s
